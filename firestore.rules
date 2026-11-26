@@ -1,0 +1,228 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'remanensfoto@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin()
+        || (isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isNonNegNumber(val) {
+      return (val is int || val is float) && val >= 0 && val <= 10000000000;
+    }
+
+    function isValidContentMix(mix) {
+      return mix is map
+        && mix.keys().hasAll(['static', 'reels', 'covers', 'carousels'])
+        && mix.keys().hasOnly(['static', 'reels', 'covers', 'carousels'])
+        && isNonNegNumber(mix.static)
+        && isNonNegNumber(mix.reels)
+        && isNonNegNumber(mix.covers)
+        && isNonNegNumber(mix.carousels);
+    }
+
+    function isValidTopPost(post) {
+      return post is map
+        && post.keys().hasAll(['id', 'title', 'contentType', 'primaryMetric', 'secondaryMetric', 'imageUrl', 'postUrl', 'publishedDate'])
+        && post.keys().hasOnly(['id', 'title', 'contentType', 'primaryMetric', 'secondaryMetric', 'imageUrl', 'postUrl', 'publishedDate'])
+        && isValidId(post.id)
+        && post.title is string && post.title.size() <= 160
+        && post.contentType in ['static', 'reels', 'covers', 'carousels']
+        && isNonNegNumber(post.primaryMetric)
+        && isNonNegNumber(post.secondaryMetric)
+        && post.imageUrl is string && post.imageUrl.size() <= 120000
+        && post.postUrl is string && post.postUrl.size() <= 500
+        && post.publishedDate is string && post.publishedDate.size() <= 40;
+    }
+
+    function isValidTopPostsList(posts) {
+      return posts is list
+        && posts.size() <= 2
+        && (posts.size() == 0 || isValidTopPost(posts[0]))
+        && (posts.size() <= 1 || isValidTopPost(posts[1]));
+    }
+
+    function isValidMetaNetwork(net) {
+      return net is map
+        && net.keys().hasAll(['reach', 'engagement', 'visits', 'followers', 'contentMix', 'topPosts'])
+        && net.keys().hasOnly(['reach', 'engagement', 'visits', 'followers', 'contentMix', 'topPosts'])
+        && isNonNegNumber(net.reach)
+        && isNonNegNumber(net.engagement)
+        && isNonNegNumber(net.visits)
+        && isNonNegNumber(net.followers)
+        && isValidContentMix(net.contentMix)
+        && isValidTopPostsList(net.topPosts);
+    }
+
+    function isValidTikTokNetwork(net) {
+      return net is map
+        && net.keys().hasAll(['views', 'likes', 'visits', 'newFollowers', 'contentMix', 'topPosts'])
+        && net.keys().hasOnly(['views', 'likes', 'visits', 'newFollowers', 'contentMix', 'topPosts'])
+        && isNonNegNumber(net.views)
+        && isNonNegNumber(net.likes)
+        && isNonNegNumber(net.visits)
+        && isNonNegNumber(net.newFollowers)
+        && isValidContentMix(net.contentMix)
+        && isValidTopPostsList(net.topPosts);
+    }
+
+    function isValidSimulatorDefaults(sim) {
+      return sim is map
+        && sim.keys().hasAll(['monthlyBudget', 'objective', 'fbShare', 'igShare', 'ttShare', 'fbCpm', 'igCpm', 'ttCpm'])
+        && sim.keys().hasOnly(['monthlyBudget', 'objective', 'fbShare', 'igShare', 'ttShare', 'fbCpm', 'igCpm', 'ttCpm'])
+        && isNonNegNumber(sim.monthlyBudget)
+        && sim.objective in ['awareness', 'engagement', 'traffic']
+        && isNonNegNumber(sim.fbShare) && sim.fbShare <= 100
+        && isNonNegNumber(sim.igShare) && sim.igShare <= 100
+        && isNonNegNumber(sim.ttShare) && sim.ttShare <= 100
+        && isNonNegNumber(sim.fbCpm) && sim.fbCpm > 0
+        && isNonNegNumber(sim.igCpm) && sim.igCpm > 0
+        && isNonNegNumber(sim.ttCpm) && sim.ttCpm > 0;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidAgencySettings(data) {
+      return data.keys().hasAll(['agencyName', 'agencyTagline', 'agencyLogoDataUrl', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['agencyName', 'agencyTagline', 'agencyLogoDataUrl', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.agencyName is string && data.agencyName.size() >= 1 && data.agencyName.size() <= 100
+        && data.agencyTagline is string && data.agencyTagline.size() <= 180
+        && data.agencyLogoDataUrl is string && data.agencyLogoDataUrl.size() <= 260000
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidIsoDate(val) {
+      return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidClientReport(data) {
+      return data.keys().hasAll([
+          'clientKey', 'clientName', 'clientIndustry', 'startDate', 'endDate', 'period', 'currency',
+          'executiveSummary', 'clientLogoDataUrl', 'isPublished', 'facebook', 'instagram', 'tiktok',
+          'simulatorDefaults', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'clientKey', 'clientName', 'clientIndustry', 'startDate', 'endDate', 'period', 'currency',
+          'executiveSummary', 'clientLogoDataUrl', 'isPublished', 'facebook', 'instagram', 'tiktok',
+          'simulatorDefaults', 'ownerId', 'createdAt', 'updatedAt'
+        ])
+        && data.clientKey is string && data.clientKey.size() >= 1 && data.clientKey.size() <= 120 && data.clientKey.matches('^[a-z0-9_\\-]+$')
+        && data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 120
+        && data.clientIndustry is string && data.clientIndustry.size() <= 100
+        && isValidIsoDate(data.startDate)
+        && isValidIsoDate(data.endDate)
+        && data.startDate <= data.endDate
+        && data.period is string && data.period.size() >= 1 && data.period.size() <= 60
+        && data.currency in ['USD', 'MXN', 'COP', 'EUR', 'ARS', 'CLP', 'PEN']
+        && data.executiveSummary is string && data.executiveSummary.size() <= 1200
+        && data.clientLogoDataUrl is string && data.clientLogoDataUrl.size() <= 260000
+        && data.isPublished is bool
+        && isValidMetaNetwork(data.facebook)
+        && isValidMetaNetwork(data.instagram)
+        && isValidTikTokNetwork(data.tiktok)
+        && isValidSimulatorDefaults(data.simulatorDefaults)
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection: agencySettings ---
+    match /agencySettings/{settingsId} {
+      allow get: if isValidId(settingsId);
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && isValidId(settingsId)
+        && isValidAgencySettings(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if isSignedIn()
+        && isValidId(settingsId)
+        && isValidAgencySettings(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['agencyName', 'agencyTagline', 'agencyLogoDataUrl', 'updatedAt'])
+        && isAdmin();
+
+      allow delete: if isSignedIn()
+        && isValidId(settingsId)
+        && isAdmin();
+    }
+
+    // --- Collection: reports ---
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId)
+        && (existing().isPublished == true || isAdmin());
+
+      allow list: if existing().isPublished == true
+        || isBootstrappedAdmin()
+        || (isVerifiedUser() && existing().ownerId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && isValidClientReport(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isAdmin();
+
+      allow update: if isSignedIn()
+        && isValidId(reportId)
+        && isValidClientReport(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'clientKey', 'clientName', 'clientIndustry', 'startDate', 'endDate', 'period', 'currency',
+          'executiveSummary', 'clientLogoDataUrl', 'isPublished', 'facebook', 'instagram', 'tiktok',
+          'simulatorDefaults', 'updatedAt'
+        ])
+        && isAdmin();
+
+      allow delete: if isSignedIn()
+        && isValidId(reportId)
+        && isAdmin();
+    }
+
+    // --- Collection: admins ---
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list, create, update, delete: if false;
+    }
+  }
+}

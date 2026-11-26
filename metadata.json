@@ -1,0 +1,6 @@
+{
+  "name": "Pulso Social — Informes de Redes Sociales",
+  "description": "Plataforma minimalista de informes de redes sociales (Facebook, Instagram y TikTok) con panel privado, simulador de inversión, inserción en Google Sites y exportación a PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

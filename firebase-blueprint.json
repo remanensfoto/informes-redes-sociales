@@ -1,0 +1,193 @@
+{
+  "entities": {
+    "AgencySettings": {
+      "title": "AgencySettings",
+      "description": "Global agency branding settings (agency name, tagline, and PNG logo data URL) shown across client presentations.",
+      "type": "object",
+      "properties": {
+        "agencyName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name of the social media agency"
+        },
+        "agencyTagline": {
+          "type": "string",
+          "maxLength": 180,
+          "description": "Short subtitle shown in presentation headers and PDF footer"
+        },
+        "agencyLogoDataUrl": {
+          "type": "string",
+          "maxLength": 260000,
+          "description": "Compressed PNG/WebP data URL for the agency logo"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the agency admin who owns this configuration"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update"
+        }
+      },
+      "required": ["agencyName", "agencyTagline", "agencyLogoDataUrl", "ownerId", "createdAt", "updatedAt"]
+    },
+    "ClientReport": {
+      "title": "ClientReport",
+      "description": "Social media performance report for a client covering a specific month or custom date interval across Facebook, Instagram, and TikTok.",
+      "type": "object",
+      "properties": {
+        "clientKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[a-z0-9_\\-]+$",
+          "description": "Normalized client slug grouping multiple monthly or custom date-interval reports for the same client"
+        },
+        "clientName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Client brand or company name"
+        },
+        "clientIndustry": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Industry or category of the client"
+        },
+        "startDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Interval start date in ISO YYYY-MM-DD format"
+        },
+        "endDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+          "description": "Interval end date in ISO YYYY-MM-DD format (must be >= startDate)"
+        },
+        "period": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Human-readable period label (e.g. Noviembre 2026 or 01 Nov – 15 Nov 2026)"
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["USD", "MXN", "COP", "EUR", "ARS", "CLP", "PEN"],
+          "description": "Currency used in the investment simulator"
+        },
+        "executiveSummary": {
+          "type": "string",
+          "maxLength": 1200,
+          "description": "Executive summary shown in the consolidated dashboard"
+        },
+        "clientLogoDataUrl": {
+          "type": "string",
+          "maxLength": 260000,
+          "description": "Compressed PNG/WebP data URL for the client logo"
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether the report is publicly visible via presentation link and Google Sites embed"
+        },
+        "facebook": {
+          "type": "object",
+          "description": "Facebook KPIs (reach, engagement, visits, followers), content mix, and up to 2 featured posts"
+        },
+        "instagram": {
+          "type": "object",
+          "description": "Instagram KPIs (reach, engagement, visits, followers), content mix, and up to 2 featured posts"
+        },
+        "tiktok": {
+          "type": "object",
+          "description": "TikTok KPIs (views, likes, visits, newFollowers), content mix, and up to 2 featured posts"
+        },
+        "simulatorDefaults": {
+          "type": "object",
+          "description": "Default paid media simulator budget, objective, allocation shares, and CPMs"
+        },
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the agency admin who created the report"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last modification"
+        }
+      },
+      "required": [
+        "clientKey",
+        "clientName",
+        "clientIndustry",
+        "startDate",
+        "endDate",
+        "period",
+        "currency",
+        "executiveSummary",
+        "clientLogoDataUrl",
+        "isPublished",
+        "facebook",
+        "instagram",
+        "tiktok",
+        "simulatorDefaults",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Explicit admin allowlist document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Admin role marker"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp"
+        }
+      },
+      "required": ["role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/agencySettings/{settingsId}": {
+      "schema": { "$ref": "#/entities/AgencySettings" },
+      "description": "Global agency brand configuration (doc id: default). Publicly readable for presentations; writable only by verified agency admin."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ClientReport" },
+      "description": "Client social media performance reports. Published reports are publicly readable for client presentations and Google Sites embeds; all writes restricted to verified agency admin."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin UID allowlist. Only readable by the authenticated user for their own UID; client writes forbidden."
+    }
+  }
+}
